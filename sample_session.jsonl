@@ -1,0 +1,14 @@
+{"type":"user","sessionId":"demo-1","message":{"role":"user","content":"fix the failing test"}}
+{"type":"assistant","sessionId":"demo-1","message":{"role":"assistant","content":[{"type":"text","text":"Loading the release skill."},{"type":"tool_use","id":"t1","name":"Skill","input":{"skill":"release-check"}}]}}
+{"type":"user","sessionId":"demo-1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}}
+{"type":"assistant","sessionId":"demo-1","message":{"role":"assistant","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"cd /repo && pytest tests/test_api.py -q"}}]}}
+{"type":"user","sessionId":"demo-1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","is_error":true,"content":[{"type":"text","text":"Traceback (most recent call last):\n  File \"tests/test_api.py\", line 3\nModuleNotFoundError: No module named 'yaml'"}]}]}}
+{"type":"assistant","sessionId":"demo-1","message":{"role":"assistant","content":[{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"cd /repo && python -m pytest tests/test_api.py -q"}}]}}
+{"type":"user","sessionId":"demo-1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t3","content":"3 passed"}]}}
+{"type":"assistant","sessionId":"demo-1","message":{"role":"assistant","content":[{"type":"tool_use","id":"t4","name":"Edit","input":{"file_path":"/repo/src/app.py","old_string":"a","new_string":"b"}}]}}
+{"type":"user","sessionId":"demo-1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t4","is_error":true,"content":"String to replace not found in file."}]}}
+{"type":"assistant","sessionId":"demo-1","message":{"role":"assistant","content":[{"type":"tool_use","id":"t5","name":"Read","input":{"file_path":"/repo/src/app.py"}}]}}
+{"type":"user","sessionId":"demo-1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t5","content":"..."}]}}
+{"type":"assistant","sessionId":"demo-1","message":{"role":"assistant","content":[{"type":"tool_use","id":"t6","name":"Edit","input":{"file_path":"/repo/src/app.py","old_string":"c","new_string":"d"}}]}}
+{"type":"user","sessionId":"demo-1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t6","content":"ok"}]}}
+not json at all
