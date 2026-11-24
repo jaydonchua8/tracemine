@@ -12,61 +12,17 @@ import shlex
 import sys
 from collections import Counter, defaultdict
 
+import formats
+
 # ---------------------------------------------------------------- loading
 
 def load(lines):
     """Return {session_id: [call, ...]} from JSONL lines.
 
-    Two line shapes are accepted:
-      flat:       {"session", "tool", "input", "ok", "error"}
-      transcript: {"type": "assistant"|"user", "sessionId", "message": {"content": [...]}}
-                  with tool_use blocks on assistant lines and tool_result blocks on user lines.
-    A call is a dict with keys tool, input, ok, error.
+    Claude Code transcripts, Codex rollouts and the flat benchmark shape are all accepted,
+    see formats.py. A call is a dict with keys tool, input, ok, error (plus done, agent).
     """
-    sessions = defaultdict(list)
-    pending = {}
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            ev = json.loads(line)
-        except ValueError:
-            continue
-        if not isinstance(ev, dict):
-            continue
-        if "tool" in ev:
-            sessions[str(ev.get("session", "s0"))].append({
-                "tool": ev["tool"], "input": ev.get("input") or {},
-                "ok": bool(ev.get("ok", True)), "error": ev.get("error") or ""})
-            continue
-        msg = ev.get("message")
-        content = msg.get("content") if isinstance(msg, dict) else None
-        if not isinstance(content, list):
-            continue
-        sid = str(ev.get("sessionId", "s0"))
-        for block in content:
-            if not isinstance(block, dict):
-                continue
-            if block.get("type") == "tool_use":
-                call = {"tool": block.get("name", "?"), "input": block.get("input") or {},
-                        "ok": True, "error": ""}
-                sessions[sid].append(call)
-                pending[block.get("id")] = call
-            elif block.get("type") == "tool_result":
-                call = pending.pop(block.get("tool_use_id"), None)
-                if call is not None and block.get("is_error"):
-                    call["ok"] = False
-                    call["error"] = _text(block.get("content"))
-    return dict(sessions)
-
-
-def _text(content):
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "\n".join(b.get("text", "") for b in content if isinstance(b, dict))
-    return ""
+    return formats.calls_only(formats.parse(lines))
 
 # ---------------------------------------------------------------- normalising
 
@@ -352,9 +308,42 @@ def propose(skill_text, workflows, rules, name="SKILL.md", top=5):
     return "\n".join(difflib.unified_diff(old, old + add, "a/" + name, "b/" + name, lineterm=""))
 
 
+def skills_main(paths, as_json):
+    """Per skill verdicts and analytics. Each path is parsed on its own, because a Codex
+    rollout file names its session only once, on its first line."""
+    import skilleval
+    sessions = {}
+    for path in paths:
+        with open(path) as f:
+            sessions.update(formats.parse(f))
+    rep = skilleval.report(sessions)
+    if as_json:
+        rows = [{k: r[k] for k in ("session", "agent", "skill", "how", "verdict", "reason")}
+                for r in rep["rows"]]
+        print(json.dumps({"invocations": rows, "analytics": rep["analytics"],
+                          "diffs": rep["diffs"]}, indent=1))
+        return 0
+    print("%d sessions, %d skill invocations" % (len(sessions), len(rep["rows"])))
+    print("\n%-18s %5s %5s %8s  %s" % ("skill", "uses", "eval", "success", "verdicts"))
+    for a in rep["analytics"]:
+        rate = "-" if a["success_rate"] is None else "%.0f%%" % (100 * a["success_rate"])
+        print("%-18s %5d %5d %8s  %s" % (a["skill"], a["invocations"], a["evaluated"], rate,
+              ", ".join("%s %d" % (v, n) for v, n in a["verdicts"].items() if n)))
+    print("\ninvocations that were not a success")
+    for r in rep["rows"]:
+        if r["verdict"] != "success":
+            print("  %s  %s  %s: %s" % (r["session"], r["skill"], r["verdict"], r["reason"]))
+    for skill, diff in sorted(rep["diffs"].items()):
+        print("\nproposed edit for %s\n%s" % (skill, diff))
+    return 0
+
+
 def main(argv):
+    if len(argv) >= 2 and argv[0] == "skills":
+        return skills_main([a for a in argv[1:] if not a.startswith("--")], "--json" in argv)
     if len(argv) < 2 or argv[0] != "report":
-        print("usage: python tracemine.py report traces.jsonl [--skill SKILL.md] [--json]")
+        print("usage: python tracemine.py report traces.jsonl [--skill SKILL.md] [--json]\n"
+              "       python tracemine.py skills session.jsonl [more.jsonl ...] [--json]")
         return 2
     with open(argv[1]) as f:
         sessions = load(f)

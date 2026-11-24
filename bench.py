@@ -5,6 +5,7 @@ python bench.py            run the benchmark, print tables, write bench_results.
 python bench.py --dump F   write one generated trace set to F as JSONL
 """
 import json
+import os
 import random
 import sys
 import time
@@ -240,8 +241,14 @@ def run():
                        "unresolved_listed": unresolved_n}
     out["mining_seconds"] = round(secs, 2)
     out["calls_per_second"] = round(calls_n / secs)
+    data = {}
+    if os.path.exists("bench_results.json"):
+        with open("bench_results.json") as fh:
+            data = json.load(fh)
+    data = {k: v for k, v in data.items() if k == "skill_verdicts"}   # kept from bench_skills.py
+    data["workflow_mining"] = out
     with open("bench_results.json", "w") as fh:
-        json.dump(out, fh, indent=1)
+        json.dump(data, fh, indent=1)
 
 
 if __name__ == "__main__":
